@@ -1,0 +1,363 @@
+---
+title: "Therapy lamps"
+author: "Zauner, J., Spitschan, M."
+format: 
+  html:
+    code-link: true
+    code-tools: true
+    self-contained: true
+---
+
+## Preface
+
+This document analyses two personal light exposure datasets, captured in the same office, with shut blinds. The goal of the data collection is to compare personal light exposure using a light therapy lamp, compared to standard office lighting. 
+
+:::: {.grid}
+
+::: {.g-col-6}
+![Working desk 1, for ID `4789` (no therapy-lamp)](data/c796d39f-2b91-438b-a651-63d863270982.jpg)
+:::
+
+::: {.g-col-6}
+![Working desk 2, for ID `5541` (therapy-lamp)](data/IMG_8098.jpg)
+:::
+
+::::
+
+## Preparation
+
+```{r}
+#| label: setup
+#| message: false
+
+library(LightLogR)
+library(tidyverse)
+library(readxl)
+library(ggsci)
+library(cowplot)
+library(gt)
+library(gtsummary)
+library(legendry)
+library(ggimage)
+library(patchwork)
+```
+
+### Light data
+
+```{r}
+#| label: import light
+#| fig-width: 5
+#| fig-height: 2
+path <- "data"
+coordinates <- c(48.1371, 11.5754)
+files <- list.files(path, pattern = ".txt$", full.names = TRUE)
+pattern <- "Log_(.{4})_"
+tz <- "Europe/Berlin"
+data <- import$ActLumus(files, tz = tz, auto.id = pattern)
+```
+
+```{r}
+#| label: check light
+#| fig-width: 8
+#| fig-height: 4
+data |> 
+  gg_day(aes_col = Id) |> 
+  gg_photoperiod(coordinates)
+data |> gap_table(full.days = FALSE)
+```
+
+### Log data
+
+```{r}
+#| label: import logs
+path <- "data/event_log_LightLamp.xlsx"
+#import log data
+state_data <- read_excel(path)
+state_data <-
+  state_data |> 
+    rename(Id = Participant, state = Event) |> 
+    mutate(Datetime = `date<-`(Time, Date) |> force_tz(tz),
+           Id = factor(Id)) |> 
+    select(-Date, -Time) |> 
+    number_states(type, use.original.state = FALSE) |>
+    pivot_wider(id_cols = c(Id, state, type.count), values_from = Datetime, 
+                names_from = type) |> 
+    select(-type.count) |> 
+  group_by(Id)
+#show log data
+state_data |> 
+  gt(rowname_col = "state") |> 
+  tab_footnote(("Note that only ID 5541 received the therapy light intervention, but the time span it was active in the room is denoted in both state datasets"), 
+               locations = cells_stub(contains("therapy light"))
+               )
+```
+
+### Combine light and log data
+
+```{r}
+#| label: combine data
+data_full <- data
+data <-
+  data |> 
+  select(Id, Datetime, MEDI) |> 
+  add_states(state_data) |> 
+  mutate(
+  state = factor(state, 
+                        levels = c("pre-light", "therapy light", "post-light", "baseline"),
+                        labels = c("Pre-light", "Therapy light", "Post-light", "Desk (horizontal)")
+                        )
+  )
+```
+
+## Comparison
+
+### Histogram
+
+```{r}
+#| label: histogram
+#| fig-width: 8
+#| fig-height: 3
+
+light_histogram <- 
+data |> 
+  filter(state %in% c("Post-light", "Pre-light", "Therapy light")) |> 
+  ggplot(aes(x=MEDI)) +
+  geom_histogram(aes(fill = fct_rev(Id), y = after_stat(ncount)), 
+                 alpha = 0.75, position = "identity",
+                 binwidth = 100) +
+  facet_grid(cols = vars(state)) +
+  scale_fill_jco() +
+  scale_x_continuous(breaks = c(0, seq(500, 2500, by = 500)),
+                     ) + 
+  scale_y_continuous(labels = \(x) vec_fmt_percent(x, 0)) + 
+  coord_cartesian(xlim = c(0, 2500)) +
+  theme_cowplot() +
+  theme_sub_strip(
+    # placement = "outside",
+                  text = element_text(face = "bold")
+    ) +
+  guides(fill = "none") +
+  labs(y = NULL, x = "melanopic EDI (lx)") +
+  theme(panel.grid.major.y = ggplot2::element_line("grey95"), 
+    panel.grid.major.x = ggplot2::element_line(colour = "grey", 
+      linewidth = 0.25), strip.text.y = ggplot2::element_text(face = "bold", 
+      ))
+
+light_histogram
+```
+
+### Table
+
+
+```{r}
+path_lamp <- "assets/5541.png"
+path_default <- "assets/4789.png"
+
+summary_dose <- 
+data |> 
+  drop_na(state) |> 
+  summarize(
+    dose(MEDI, Datetime, na.rm = TRUE, as.df = TRUE),
+    total_duration = n()*60
+  ) |> 
+  tibble(
+    image = c(path_default, path_lamp),
+    y = c(600, 2500),
+    x = c(11.125*60*60)
+  )
+
+partial_summary_dose <- 
+summary_dose |> 
+  select(1:3) |> 
+  mutate(Id = case_when(
+                        Id == "4789" ~ "No therapy light",
+                        Id == "5541" ~ "Therapy light"),
+         total_duration = total_duration |> as.duration()
+         ) |> 
+  rename(mean = dose) |> 
+  pivot_wider(
+              names_from = Id,
+              values_from = c(mean, total_duration)) |> 
+  mutate(state = "Melanopic EDI dose", .before = 1)
+```
+
+```{r}
+#| label: summarize states
+
+data_tbl_comparison <- 
+data |>
+  # tbl_summary(by = Id)
+
+  extract_states(state) |> 
+  extract_metric(data, 
+                 mean = mean(MEDI),
+                 median = median(MEDI)) |> 
+  summarize_numeric(prefix = "") |> 
+  select(Id, state, mean, total_duration) |> 
+  drop_na() |> 
+  mutate(Id = case_when(
+                        Id == "4789" ~ "No therapy light",
+                        Id == "5541" ~ "Therapy light"),
+         ) |> 
+  pivot_wider(id_cols = state, 
+              names_from = Id, 
+              values_from = c(mean, total_duration)) |> 
+  arrange(state) |> 
+  select(1, 2, 4, 3, 5)
+  
+tbl_comparison <-
+  data_tbl_comparison |> 
+  tibble::add_row(partial_summary_dose) |> 
+  gt(rowname_col = "state") |> 
+  tab_spanner("Control condition", contains("No therapy light")) |> 
+  tab_spanner("Therapy lamp", contains("Therapy light", ignore.case = FALSE)) |> 
+  cols_label_with(fn = 
+                    \(x) str_remove_all(x, 
+                                        " |_|Therapy|total|therapy|light|No") |> 
+                    str_to_title()
+                  ) |> 
+  fmt_duration(c(3,5), input_units = "seconds", output_units = "minutes",
+               duration_style = "wide") |> 
+  # cols_units(`mean_No therapy light` = "lx",
+             # `mean_Therapy light` = "lx") |> 
+  tab_style(locations = cells_column_spanners(1),
+            style = cell_text(color = "#EFC000", weight = "bold")
+  ) |> 
+  tab_style(locations = cells_column_spanners(2),
+            style = cell_text(color = "#0073C2", weight = "bold")
+  ) |> 
+  cols_align("left", columns = state) |> 
+  cols_add(`Rel. difference` = (`mean_Therapy light` - `mean_No therapy light`)/`mean_No therapy light`) |> 
+    fmt(columns = c(2,4), rows = c(1:4),
+        fns =  \(x) vec_fmt_number(x, decimals = 0, pattern = "{x} lx")
+        ) |> 
+    fmt(columns = c(2,4), rows = 5,
+        fns =  \(x) vec_fmt_number(x, decimals = 0, pattern = "{x} lx·h")
+        ) |> 
+  fmt_percent(6, force_sign = TRUE, decimals = 0) |> 
+    tab_style(locations = list(cells_stub(), cells_column_labels()),
+            style = cell_text(weight = "bold")) |> 
+  gt::cols_width(-state ~ px(150), 
+                 state ~ px(250))
+
+tbl_comparison
+```
+
+### Timeline
+
+```{r}
+times <- c(9 +48/60, 10 + 34/60, 11 + 35/60, 12 + 20/60)*60*60
+
+protocol_bracket <- primitive_bracket(
+  # Keys determine what is displayed
+  key = key_range_manual(start = times[1:3]+0.01, end = times[2:4], 
+                         name = c("Pre-light", "Therapy light", "Post-light")),
+  bracket = "square",
+  theme = theme(legend.text = element_text(face = "bold"))
+)
+```
+
+```{r}
+Plot1 <-
+data |> 
+  drop_na(state) |> 
+  filter(state != "Desk (horizontal)") |> 
+  gap_handler() |> 
+  gg_day(aes_col = fct_rev(Id), geom = "line", facetting = FALSE,
+         y.axis.label = "Melanopic EDI (lx)",
+         y.scale = "identity",
+         x.axis.label = "Local time (HH:MM)",
+         x.axis.breaks = hms::hms(hours = seq(0, 24, by = 0.5)),
+         y.axis.breaks = c(0, 250,seq(500, 2500, by = 500))) |> 
+  gg_state(state, aes_fill = state, alpha = 0.05) +
+  scale_fill_manual(values = c(`Therapy light` = "#0073C2FF")) +
+  guides(fill = "none", color = "none", 
+         x = guide_axis_stack(protocol_bracket, "axis")) +
+  coord_cartesian(xlim = c(9.5, 12.6)*60*60, ylim = c(0, 2850), expand = FALSE) +
+  geom_point(data = summary_dose, inherit.aes = FALSE,
+             aes(colour = fct_rev(Id),
+                 x = x,
+                 y = y),
+             fill = "white",
+             size = 0,
+             shape = 21
+             ) +
+  geom_image(data = summary_dose, inherit.aes = FALSE, 
+             aes(image = image, 
+                 x = x,
+                 y = y),
+             size = 0.2,
+             alpha = 1
+             ) 
+  # labs(caption = "Note: interruptions from the protocol (e.g. restroom usage) were removed.")
+
+Plot1
+
+```
+
+### Light dose
+
+```{r}
+Plot2 <-
+data |> 
+  drop_na(state) |>
+  filter(state != "Desk (horizontal)") |> 
+  mutate(
+    dose = cumsum(MEDI)/60
+  ) |> 
+  gap_handler() |>
+  gg_day(aes_col = fct_rev(Id), geom = "line", facetting = FALSE,
+         y.axis = dose,
+         y.axis.label = "Melanopic EDI dose (lx·h)",
+         y.scale = "identity",
+         x.axis.label = "Local time (HH:MM)",
+         x.axis.breaks = hms::hms(hours = seq(0, 24, by = 0.5)),
+         y.axis.breaks = c(seq(0, 2500, by = 500))
+         ) |> 
+  gg_state(state, aes_fill = state, alpha = 0.05) +
+  scale_fill_manual(values = c(`Therapy light` = "#0073C2FF")) +
+  guides(fill = "none", color = "none", 
+         x = guide_axis_stack(protocol_bracket, "axis")) +
+  coord_cartesian(xlim = c(9.5, 12.6)*60*60, 
+                  ylim = c(0, 2850),
+                  expand = FALSE,
+                  clip = FALSE
+                  ) +
+  geom_point(data = summary_dose, inherit.aes = FALSE,
+             aes(colour = fct_rev(Id),
+                 x = 12.48*60*60,
+                 y = dose),
+             fill = "white",
+             size = 18,
+             shape = 21
+             ) +
+  geom_image(data = summary_dose, inherit.aes = FALSE,
+             aes(image = image,
+                 x = 12.48*60*60,
+                 y = dose),
+             size = 0.15
+             ) 
+  # labs(caption = "Note: interruptions from the protocol (e.g. restroom usage) were removed.")
+
+Plot2
+ggsave("figures/Figure1.pdf", width = 5, height = 5, scale = 2)
+
+```
+
+### Patchwork
+
+```{r}
+#| fig-height: 9
+#| fig-width: 12
+
+merge((Plot1 + Plot2) /
+  light_histogram + plot_layout(heights = c(3,2))) /
+  # wrap_table(tbl_comparison, panel = "full", space = "fixed") +
+  wrap_table(tbl_comparison, panel = "full", space = "fixed") +
+  plot_annotation(tag_levels = "A", caption = 
+                    "Note: interruptions from the protocol (e.g. restroom times) were removed.") &
+  theme(plot.tag = element_text(face = "bold"))
+
+ ggsave("figures/Figure1.pdf", width = 8, height = 6, scale = 1.5)
+```
+
