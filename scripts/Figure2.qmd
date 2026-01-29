@@ -15,11 +15,11 @@ This document analyses two personal light exposure datasets, captured in the sam
 :::: {.grid}
 
 ::: {.g-col-6}
-![Working desk 1, for ID `4789` (no therapy-lamp)](data/c796d39f-2b91-438b-a651-63d863270982.jpg)
+![Working desk 1, for ID `4789` (no therapy-lamp)](../data/c796d39f-2b91-438b-a651-63d863270982.jpg)
 :::
 
 ::: {.g-col-6}
-![Working desk 2, for ID `5541` (therapy-lamp)](data/IMG_8098.jpg)
+![Working desk 2, for ID `5541` (therapy-lamp)](../data/IMG_8098.jpg)
 :::
 
 ::::
@@ -40,6 +40,8 @@ library(gtsummary)
 library(legendry)
 library(ggimage)
 library(patchwork)
+library(here)
+
 ```
 
 ### Light data
@@ -48,7 +50,7 @@ library(patchwork)
 #| label: import light
 #| fig-width: 5
 #| fig-height: 2
-path <- "data"
+path <- here("data")
 coordinates <- c(48.1371, 11.5754)
 files <- list.files(path, pattern = ".txt$", full.names = TRUE)
 pattern <- "Log_(.{4})_"
@@ -70,7 +72,7 @@ data |> gap_table(full.days = FALSE)
 
 ```{r}
 #| label: import logs
-path <- "data/event_log_LightLamp.xlsx"
+path <- here("data/event_log_LightLamp.xlsx")
 #import log data
 state_data <- read_excel(path)
 state_data <-
@@ -150,8 +152,8 @@ light_histogram
 
 
 ```{r}
-path_lamp <- "assets/5541.png"
-path_default <- "assets/4789.png"
+path_lamp <- here("assets/5541.png")
+path_default <- here("assets/4789.png")
 
 summary_dose <- 
 data |> 
@@ -340,7 +342,7 @@ data |>
   # labs(caption = "Note: interruptions from the protocol (e.g. restroom usage) were removed.")
 
 Plot2
-ggsave("figures/Figure1.pdf", width = 5, height = 5, scale = 2)
+# ggsave(here("figures/Figure1.pdf"), width = 5, height = 5, scale = 2)
 
 ```
 
@@ -358,6 +360,7 @@ merge((Plot1 + Plot2) /
                     "Note: interruptions from the protocol (e.g. restroom times) were removed.") &
   theme(plot.tag = element_text(face = "bold"))
 
- ggsave("figures/Figure1.pdf", width = 8, height = 6, scale = 1.5)
+ ggsave(here("figures/Figure2.pdf"), width = 8, height = 6, scale = 1.5)
+ ggsave(here("figures/Figure2.png"), width = 8, height = 6, scale = 1.5)
 ```
 
