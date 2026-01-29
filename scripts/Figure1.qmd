@@ -103,10 +103,11 @@ data_5min |>
          geom = "line", 
          aes_col = factor(.Date)) +
   facet_wrap(~Id, ncol = 2)
-```
 
+colors <- c(wake = "#6A9FB5",
+            `pre-s` = "#FDB863",
+            sleep = "#2C3E50")
 
-```{r}
 data_5min_red <- 
 data_5min |> 
   filter(Id %in% c("UCR_S010", "UCR_S003", "UCR_S009"))
@@ -145,12 +146,14 @@ data_5min_red |>
                 # aes_col = factor(Id), 
                 aes_fill = State.Brown,
                 # aes_fill = factor(Id),
-                facetting = FALSE,
+                facetting = FALSE, 
                 y.axis.label = "Melanopic EDI (lx)") |> 
   gg_photoperiod() +
   guides(fill = "none", color = "none") +
   facet_wrap(~Id, scales = "free_x", ncol = 1) +
   coord_cartesian(ylim = c(0,20000)) +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors) +
   labs(x = NULL) +
   theme(
         strip.background = element_blank()
@@ -207,7 +210,9 @@ data_5min_red |>
     # strip.text = element_blank(),
     plot.margin = ggplot2::margin(10, 
       20, 10, 10, "pt")) + 
-  ggplot2::theme_sub_axis(text = element_text(size = 10))
+  ggplot2::theme_sub_axis(text = element_text(size = 10)) +
+    scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors)
   
 Plot1 + plot_spacer() + Plot2 + plot_layout(widths = c(6,-0.4, 1), axes = "collect")
 
