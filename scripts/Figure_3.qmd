@@ -13,6 +13,7 @@ library(glue)
 library(tidyverse)
 library(gt)
 library(readxl)
+library(ggtext)
 library(cowplot)
 library(patchwork)
 library(rlang)
@@ -33,8 +34,9 @@ coordinates <- c(9.9372, -84.0509)
 
 ```{r}
 # Load .RData file directly from GitHub (raw content URL)
-load(url("https://raw.githubusercontent.com/MeLiDosProject/Sancho-SalasEtAl_Dataset_2025/main/data/imported/light/light_1minute.RData"))
+load(url("https://raw.githubusercontent.com/MeLiDosProject/Sancho-SalasEtAl_Dataset_2025/main/data/imported/light/light_chest_1minute.RData"))
 load(url("https://raw.githubusercontent.com/MeLiDosProject/Sancho-SalasEtAl_Dataset_2025/main/data/imported/continuous/sleepdiaries.RData"))
+load(url("https://raw.githubusercontent.com/MeLiDosProject/Sancho-SalasEtAl_Dataset_2025/main/data/imported/demographics.RData"))
 ```
 
 ## Adding sleep information
@@ -72,7 +74,7 @@ sleepdiary |>
 #| fig-width: 7
 #| fig-height: 22
 data_5min <- 
-light_1min|> 
+light_chest_1min|> 
   select(Id, Datetime, MEDI) |> 
   aggregate_Datetime("5 mins", numeric.handler = \(x) mean(x, na.rm = TRUE)) |> 
   remove_partial_data(
@@ -123,8 +125,11 @@ data_5min_red |>
   mutate(State.Brown = fct_relevel(State.Brown, 
                                    "wake", "pre-s", "sleep")) |> 
   mutate(Id = factor(Id))
+```
 
-Plot1 <- 
+
+```{r}
+Plot1 <-
 data_5min_red |> 
   # filter(Id %in% c("UCR_S010") & date(Datetime) == "2025-07-12") |> #High day low night
   # filter(Id %in% c("UCR_S003") & date(Datetime) == "2025-06-19") |> #High night
@@ -135,9 +140,9 @@ data_5min_red |>
   add_photoperiod(coordinates) |> 
   mutate(Id = fct_relevel(Id, "UCR_S010", "UCR_S003", "UCR_S009"),
          Id = fct_recode(Id,
-                         "High daytime & low nighttime levels" = "UCR_S010",
-                         "High nighttime levels" = "UCR_S003",
-                         "Low daytime levels" = "UCR_S009"),
+                         "**A** High daytime & low nighttime levels" = "UCR_S010",
+                         "**B** High nighttime levels" = "UCR_S003",
+                         "**C** Low daytime levels" = "UCR_S009"),
          # Id = fct_reorder(Id, MEDI, .fun = min, .desc = TRUE), 
          ) |>
   gg_doubleplot(alpha = 0.8,
@@ -156,19 +161,22 @@ data_5min_red |>
   scale_color_manual(values = colors) +
   labs(x = NULL) +
   theme(
-        strip.background = element_blank()
+        strip.background = element_blank(),
+        strip.text = element_textbox_simple(size = 15, padding = margin(2, 0, 1, 0), margin = margin(3, 3, 3, 3))
   ) +
-    ggplot2::theme_sub_axis(text = element_text(size = 10)) +
-  theme_sub_strip(text = element_text(face = "bold"))
+    ggplot2::theme_sub_axis(text = element_text(size = 10))
+```
 
+
+```{r}
 Plot2 <- 
 data_5min_red |> 
   filter(date(Datetime) %in% c("2025-07-12", "2025-07-05", "2025-06-19")) |>
   mutate(Id = fct_relevel(Id, "UCR_S010", "UCR_S003", "UCR_S009"),
          Id = fct_recode(Id,
-                         " " = "UCR_S010",
-                         "  " = "UCR_S003",
-                         "   " = "UCR_S009")) |>
+                         "**A**" = "UCR_S010",
+                         "**B**" = "UCR_S003",
+                         "**C**" = "UCR_S009")) |>
   group_by(
     State.Brown, .add = TRUE
   ) |> 
@@ -202,9 +210,11 @@ data_5min_red |>
   # annotate(geom = "text", 
   #          x = 3, y = 20000, label = "sleep", color = "black",
   #          angle = 90, hjust = 1, size = 4)+
-  ggplot2::theme(plot.title.position = "plot", 
-    strip.text.y = ggplot2::element_text(face = "bold", 
-      ), strip.placement = "outside", 
+  ggplot2::theme(
+    plot.title.position = "plot", 
+    strip.text = 
+      element_textbox_simple(color = "white", size = 15, padding = margin(2, 0, 1, 0), margin = margin(3, 3, 3, 3)), 
+    strip.placement = "outside", 
     panel.grid.major.y = ggplot2::element_line("grey95"), 
     strip.background = element_blank(),
     # strip.text = element_blank(),
@@ -213,9 +223,13 @@ data_5min_red |>
   ggplot2::theme_sub_axis(text = element_text(size = 10)) +
     scale_fill_manual(values = colors) +
   scale_color_manual(values = colors)
-  
+
+```
+
+
+```{r}
 Plot1 + plot_spacer() + Plot2 + plot_layout(widths = c(6,-0.4, 1), axes = "collect")
 
-ggsave("../figures/Figure_1.pdf", width = 8*1.5, height = 7*1.5, scale = 2, units = "cm")
-ggsave("../figures/Figure_1.png", width = 8*1.5, height = 7*1.5, scale = 2, units = "cm")
+ggsave("../figures/Figure_3.pdf", width = 8*1.5, height = 7*1.5, scale = 2, units = "cm")
+ggsave("../figures/Figure_3.png", width = 8*1.5, height = 7*1.5, scale = 2, units = "cm")
 ```
