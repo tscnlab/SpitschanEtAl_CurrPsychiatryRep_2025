@@ -352,15 +352,17 @@ Plot2
 #| fig-height: 9
 #| fig-width: 12
 
-merge((Plot1 + Plot2) /
-  light_histogram + plot_layout(heights = c(3,2))) /
+(merge((Plot1 + labs(title = "**A** Intensity at eye level") + Plot2 + labs(title = "**B** Cumulative exposure")) /
+  light_histogram + labs(title = "**C** Intensity distributions of experimental conditions") + plot_layout(heights = c(3,2))) /
   # wrap_table(tbl_comparison, panel = "full", space = "fixed") +
-  wrap_table(tbl_comparison, panel = "full", space = "fixed") +
-  plot_annotation(tag_levels = "A", caption = 
-                    "Note: interruptions from the protocol (e.g. restroom times) were removed.") &
-  theme(plot.tag = element_text(face = "bold"))
+  (wrap_table(tbl_comparison, panel = "full", space = "fixed") + labs(title = "**D** Tabular summary of experimental conditions") ) +
+  plot_annotation(caption = 
+                    "Note: interruptions from the protocol (e.g. restroom times) were removed.")) &
+  theme(plot.tag = element_text(face = "bold"),
+        plot.title.position = "panel",
+        plot.title = element_textbox_simple(size = 15, face = "plain", padding = margin(2, 0, 1, 0), margin = margin(3, 3, 3, 3)))
 
- ggsave(here("figures/Figure2.pdf"), width = 8, height = 6, scale = 1.5)
- ggsave(here("figures/Figure2.png"), width = 8, height = 6, scale = 1.5)
+ ggsave(here("figures/Figure_4.pdf"), width = 8, height = 6, scale = 1.5)
+  ggsave(here("figures/Figure_4.png"), width = 8, height = 6, scale = 1.5)
 ```
 
